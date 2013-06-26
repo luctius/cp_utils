@@ -53,11 +53,11 @@ AC_DEFINE([_GNU_SOURCE], 1, [Use GNU extensions])
 AC_CHECK_LIB([math], [pow])
 AC_CHECK_LIB([rt], [clock_gettime])
 
-AC_CHECK_PROGS([DOXYGEN], [doxygen])
-if test -z "$DOXYGEN";
-    then AC_MSG_WARN([Doxygen not found - continuing without Doxygen support])
-fi
-AM_CONDITIONAL([HAVE_DOXYGEN], [test -n "$DOXYGEN"])AM_COND_IF([HAVE_DOXYGEN], [AC_CONFIG_FILES([docs/Doxyfile])])
+#AC_CHECK_PROGS([DOXYGEN], [doxygen])
+#if test -z "$DOXYGEN";
+#    then AC_MSG_WARN([Doxygen not found - continuing without Doxygen support])
+#fi
+#AM_CONDITIONAL([HAVE_DOXYGEN], [test -n "$DOXYGEN"])AM_COND_IF([HAVE_DOXYGEN], [AC_CONFIG_FILES([docs/Doxyfile])])
 
 # Checks for header files.
 AC_CHECK_HEADERS([fcntl.h limits.h stddef.h stdint.h stdlib.h string.h sys/time.h unistd.h])
@@ -83,7 +83,8 @@ AC_CONFIG_FILES([
     Makefile 
     src/Makefile 
     test/Makefile 
-    libcmalloc-${LIBCMALLOC_API_VERSION}.pc 
+    cmalloc-${LIBCMALLOC_API_VERSION}.pc 
+    ])
 
 AC_CONFIG_HEADERS([src/def.h])
 

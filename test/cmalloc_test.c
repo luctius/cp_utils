@@ -7,7 +7,7 @@
 #include <sys/resource.h>
 #include <stdint.h>
 
-#include "cmalloc.h"
+#include <libcmalloc-1.0/cmalloc.h>
 
 #define NVALGRIND
 #ifndef NVALGRIND
