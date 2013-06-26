@@ -1,0 +1,11 @@
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+libdir=@libdir@
+includedir=@includedir@
+
+Name: libreadout2
+Description: Library providing a parser for SensorPackets.
+Requires: 
+Version: @PACKAGE_VERSION@
+Libs: -L${libdir} -lreadout-2.0
+Cflags: -I${includedir}/libreadout-2.0
