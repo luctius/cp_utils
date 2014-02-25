@@ -1,4 +1,5 @@
 //#define DEBUG_CMALLOC
+//#define CMALLOC_BACKUP_PLAN
 #define NVALGRIND
 
 #ifdef __GNUC__
@@ -9,7 +10,7 @@
 #define unlikely(x)     (x)
 #endif
 
-#include <execinfo.h>
+//#include <execinfo.h>
 #include <assert.h>
 #include <string.h>
 #include <stdio.h>
@@ -17,21 +18,17 @@
 #include <stddef.h>
 #include <stdbool.h>
 #include <stdint.h>
+/*#if !(defined __UCLIBC__)
+#include <execinfo.h>
+#endif*/
 
 #ifndef NVALGRIND
 #include <valgrind/memcheck.h>
 #endif
 
-#include <libcmalloc-1.0/cmalloc.h>
+#include "cmalloc.h"
 
-
-#include <semaphore.h>
-#define cmalloc_sem_t       sem_t
-
-#define cmalloc_sem_init    sem_init
-#define cmalloc_sem_destroy sem_destroy
-#define cmalloc_sem_wait    sem_wait
-#define cmalloc_sem_post    sem_post
+#include "lro2_os.h"
 
 #define CMALLOC_BAIL_PRINTF(fmt, ...) {fprintf(stderr, "\033[0;31m[CMALLOC:Error] [%s:%s:%d] " fmt "\033[0m\n", __FILE__, __func__,__LINE__,  ##__VA_ARGS__);}
 #define CMALLOC_BAIL(error, fmt, ...) \
@@ -72,13 +69,14 @@ struct cmalloc
     size_t size;
     size_t chunk_sz;
 
-    ssize_t total_sz;
-    ssize_t free_sz;
+    size_t total_sz;
+    size_t free_sz;
 
+/*
     bool backtrace;
     int backtrace_sz;
-
-    cmalloc_sem_t semaphore;
+*/
+    lro2_sem_t semaphore;
 
     uint64_t alloc_counter;
     uint64_t free_counter;
@@ -312,7 +310,7 @@ static struct chunk *split_and_delink_chunk(struct cmalloc *c, struct chunk *ptr
         assert( ( ( (uint8_t *) ptr) +ptr->sz) <= (uint8_t *) new_ptr);
         assert(new_ptr->sz % c->chunk_sz == 0);
         assert( (new_ptr->this - ptr->this) % sizeof(void*) == 0);
-        assert( (new_ptr->this - ptr->this) == sz);
+        assert( (size_t) (new_ptr->this - ptr->this) == sz);
         assert( (new_ptr->this - ptr->this) % c->chunk_sz == 0);
     }
 
@@ -358,8 +356,8 @@ static void check_for_demote(struct cmalloc *c, struct chunk *ptr)
 struct cmalloc *cmalloc_init_debug(void *base_ptr, size_t sz, size_t chunk_sz, bool backtrace, int backtrace_sz)
 {
     struct cmalloc *c = cmalloc_init(base_ptr, sz, chunk_sz);
-    c->backtrace = backtrace;
-    c->backtrace_sz = backtrace_sz;
+    /*c->backtrace = backtrace;
+    c->backtrace_sz = backtrace_sz;*/
     return c;
 }
 
@@ -380,8 +378,8 @@ struct cmalloc *cmalloc_init(void *base_ptr, size_t sz, size_t chunk_sz)
 
     cm = base_ptr;
     cm->base = base_ptr;
-    cm->backtrace = false;
-    cm->backtrace_sz = 0;
+    /*cm->backtrace = false;
+    cm->backtrace_sz = 0;*/
     cm->size = sz;
     cm->chunk_sz = chunk_sz;
     cm->alloc_counter = 0;
@@ -391,7 +389,7 @@ struct cmalloc *cmalloc_init(void *base_ptr, size_t sz, size_t chunk_sz)
     cm->first_chunk_big   = (struct chunk *) ( (uint8_t *) cm->first_chunk_small) + sizeof(struct chunk);
     cm->check1 = cm->check2 = CMALLOC_CHECK_MAGIC_NUMBER;
 
-    if (cmalloc_sem_init(&cm->semaphore, 0, 1) != 0) CMALLOC_BAIL(NULL, "Requesting semaphore failed.");
+    if (lro2_sem_init(&cm->semaphore, 0, 1) != 0) CMALLOC_BAIL(NULL, "Requesting semaphore failed.");
     /* 
        Initialise both linked lists.
        There is one block; which will be put into biglist
@@ -469,9 +467,9 @@ int cmalloc_exit(struct cmalloc *c)
         CMALLOC_BAIL(-EINVAL, "CMalloc context invalid.");
     }
 
-    cmalloc_sem_wait(&c->semaphore); /*sem down*/
-    cmalloc_sem_post(&c->semaphore); /*sem up*/
-    cmalloc_sem_destroy(&c->semaphore);
+    lro2_sem_wait(&c->semaphore); /*sem down*/
+    lro2_sem_post(&c->semaphore); /*sem up*/
+    lro2_sem_destroy(&c->semaphore);
 /*
 #ifndef NVALGRIND
         if (RUNNING_ON_VALGRIND != 0)
@@ -492,9 +490,15 @@ void* cmalloc_alloc(struct cmalloc *c, size_t sz)
     struct chunk *chunk_ptr = NULL;
     size_t orig_sz = sz;
 
+#ifdef CMALLOC_BACKUP_PLAN
+    return malloc(sz);
+#endif /*CMALLOC_BACKUP_PLAN*/
+
     if (c == NULL) CMALLOC_BAIL(NULL, "CMalloc context invalid.");
     if ( ( (c->check1 != CMALLOC_CHECK_MAGIC_NUMBER) || (c->check2 != CMALLOC_CHECK_MAGIC_NUMBER) ) ) CMALLOC_BAIL(NULL, "CMalloc context invalid.");
 
+/*
+#if !(defined __UCLIBC__)
     if (unlikely(c->backtrace) )
     {
         void *array[c->backtrace_sz];
@@ -502,10 +506,12 @@ void* cmalloc_alloc(struct cmalloc *c, size_t sz)
         char **strings;
         array_sz = backtrace (array, c->backtrace_sz);
         strings = backtrace_symbols (array, array_sz);
-        for (int i = 0; i < array_sz; i++) printf ("cmalloc_alloc caller[%d]: %s", i, strings[i]);
+        for (int i = 0; i < array_sz; i++) printf ("cmalloc_alloc caller[%d]: %s\n", i, strings[i]);
     }
+#endif
+*/
 
-    cmalloc_sem_wait(&c->semaphore); /*sem down*/
+    lro2_sem_wait(&c->semaphore); /*sem down*/
 
     /* Align sz to chunk_sz; bail if there is not enough memory left */
     {
@@ -602,8 +608,9 @@ void* cmalloc_alloc(struct cmalloc *c, size_t sz)
     /*this should not happen; we'll invistigate later... */
     else CMALLOC_DEBUG_PRINTF("-- malloc failed: [%ld / %ld] free [%ld / %ld]", sz, orig_sz, c->free_sz, c->total_sz);
 
-    //cmalloc_sanity_check(c);
-    cmalloc_sem_post(&c->semaphore); /*sem up*/
+    cmalloc_sanity_check(c);
+    CMALLOC_DEBUG_PRINTF("-- malloc alloc end\n");
+    lro2_sem_post(&c->semaphore); /*sem up*/
 
     return retval;
 }
@@ -624,9 +631,14 @@ void* cmalloc_calloc(struct cmalloc *c, size_t nmemb, size_t sz)
 void cmalloc_free(struct cmalloc *c, void *ptr)
 {
     //int orig_sz;
-    size_t freed_sz;
+    size_t freed_sz = 0;
     bool in_biglist = false;
     bool in_smalllist = false;
+
+#ifdef CMALLOC_BACKUP_PLAN
+    return free(ptr);
+#endif /*CMALLOC_BACKUP_PLAN*/
+
     struct chunk *chunk_ptr = (struct chunk *) (ptr - offsetof(struct chunk, this) );
 
     if (c == NULL) CMALLOC_BAIL_VOID("CMalloc context invalid.");
@@ -635,6 +647,8 @@ void cmalloc_free(struct cmalloc *c, void *ptr)
     if (ptr <= c->base) CMALLOC_BAIL_VOID("Parameter 'ptr' invalid.");
     if (chunk_ptr >= (c->chunk_max) ) CMALLOC_BAIL_VOID("Parameter 'ptr' invalid.");
 
+/*
+#if !(defined __UCLIBC__)
     if (unlikely(c->backtrace) )
     {
         void *array[c->backtrace_sz];
@@ -642,10 +656,11 @@ void cmalloc_free(struct cmalloc *c, void *ptr)
         char **strings;
         array_sz = backtrace (array, c->backtrace_sz);
         strings = backtrace_symbols (array, array_sz);
-        for (int i = 0; i < array_sz; i++) printf ("cmalloc_free caller[%d]: %s", i, strings[i]);
+        for (int i = 0; i < array_sz; i++) printf ("cmalloc_free caller[%d]: %s\n", i, strings[i]);
     }
-
-    cmalloc_sem_wait(&c->semaphore); /*sem down*/
+#endif
+*/
+    lro2_sem_wait(&c->semaphore); /*sem down*/
 
     /* restore chunk settings */
     chunk_ptr->this = (uint8_t *) ptr;
@@ -656,11 +671,10 @@ void cmalloc_free(struct cmalloc *c, void *ptr)
 
     CMALLOC_DEBUG_PRINTF("-- freeing [%p, %ld] --> [%p] {%ld} ", chunk_ptr, chunk_ptr->sz, c->chunk_max, c->free_sz);
 
-    if ( (chunk_ptr->sz == 0) || 
-         (chunk_ptr->sz % c->chunk_sz != 0) || 
-         (chunk_ptr->check != calc_parity(chunk_ptr->sz) ) ||
-         ( ( (struct chunk *) (chunk_ptr->this + chunk_ptr->sz) ) >= c->chunk_max) ) 
-            CMALLOC_BAIL_ABORT("memory corruption detected!");
+    if (unlikely(chunk_ptr->sz == 0) ) CMALLOC_BAIL_ABORT("memory corruption detected!");
+    if (unlikely(chunk_ptr->sz % c->chunk_sz != 0) ) CMALLOC_BAIL_ABORT("memory corruption detected!");
+    if (unlikely(chunk_ptr->check != calc_parity(chunk_ptr->sz) ) ) CMALLOC_BAIL_ABORT("memory corruption detected!");
+    if (unlikely( ( (struct chunk *) (chunk_ptr->this + chunk_ptr->sz) ) >= c->chunk_max) ) CMALLOC_BAIL_ABORT("memory corruption detected!");
 
     CMALLOC_DEBUG_PRINTF("Checking if chunk is free: big list");
     if (search_chunk_is_free(c, c->first_chunk_big,   chunk_ptr) == true) goto free_clean;
@@ -881,7 +895,8 @@ void cmalloc_free(struct cmalloc *c, void *ptr)
     assert(chunk_ptr != chunk_ptr->prev);
     assert(c->free_sz > 0);
     assert(c->free_sz <= c->total_sz);
-    //cmalloc_sanity_check(c);
+    cmalloc_sanity_check(c);
+    CMALLOC_DEBUG_PRINTF("-- malloc free end\n");
 
 #ifndef NVALGRIND
         /*
@@ -894,7 +909,7 @@ void cmalloc_free(struct cmalloc *c, void *ptr)
 #endif
 
 free_clean:
-    cmalloc_sem_post(&c->semaphore); /*sem up*/
+    lro2_sem_post(&c->semaphore); /*sem up*/
 }
 
 int cmalloc_sanity_check(struct cmalloc *c)
@@ -917,14 +932,14 @@ int cmalloc_sanity_check(struct cmalloc *c)
     return 0;
 }
 
-ssize_t cmalloc_allocated(struct cmalloc *c)
+size_t cmalloc_allocated(struct cmalloc *c)
 {
     if (c == NULL) CMALLOC_BAIL(-EINVAL, "CMalloc context invalid.");
     if ( ( (c->check1 != CMALLOC_CHECK_MAGIC_NUMBER) || (c->check2 != CMALLOC_CHECK_MAGIC_NUMBER) ) ) CMALLOC_BAIL(-EINVAL, "CMalloc context invalid.");
     return c->total_sz- cmalloc_unallocated(c);
 }
 
-ssize_t cmalloc_unallocated(struct cmalloc *c)
+size_t cmalloc_unallocated(struct cmalloc *c)
 {
     if (c == NULL) CMALLOC_BAIL(-EINVAL, "CMalloc context invalid.");
     if ( ( (c->check1 != CMALLOC_CHECK_MAGIC_NUMBER) || (c->check2 != CMALLOC_CHECK_MAGIC_NUMBER) ) ) CMALLOC_BAIL(-EINVAL, "CMalloc context invalid.");

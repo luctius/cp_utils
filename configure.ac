@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.60])
-AC_INIT(libcmalloc, 1.0.0, corpeters@incas3.eu)
+AC_INIT(libcp_utils, 1.0.0, corpeters@incas3.eu)
 AC_CONFIG_MACRO_DIR([m4])
 
 AC_SUBST([LIBCMALLOC_SO_VERSION], [1:0:0])
@@ -83,7 +83,7 @@ AC_CONFIG_FILES([
     Makefile 
     src/Makefile 
     test/Makefile 
-    cmalloc-${LIBCMALLOC_API_VERSION}.pc 
+    cp_utils-${LIBCMALLOC_API_VERSION}.pc 
     ])
 
 AC_CONFIG_HEADERS([src/def.h])
