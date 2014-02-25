@@ -8,13 +8,13 @@
 #include <libcp_utils-1.0/queue.h>
 
 #include "lro2_os.h"
+
 //#define Q_DEBUG 1
 
 #define QUEUE_BAIL_PRINTF(fmt, ...) {fprintf(stderr, "\033[0;31mQUEUE-> Error: [%s:%s] " fmt "\033[0m\n", __FILE__, __func__,  ##__VA_ARGS__);}
 #define QUEUE_BAIL(error, fmt, ...) { QUEUE_BAIL_PRINTF(fmt, ##__VA_ARGS__); return  error; }
 
-struct queue
-{
+struct queue {
     void *mem_ptr;
     size_t mem_sz;
 
@@ -24,19 +24,22 @@ struct queue
     int element_ctr;;
     int head;
     int tail;
+    bool owner;
     intptr_t queue_start[];
 };
 
 int queue_free_unsafe(struct queue *q);
 int queue_size_unsafe(struct queue *q);
 
-int queue_minimum_size(void)
-{
-    return sizeof(struct queue) +(2 * sizeof(intptr_t) );
+inline int queue_element_size(void) {
+    return (sizeof(intptr_t) );
 }
 
-struct queue *queue_init(void *mem, size_t sz)
-{
+inline int queue_minimum_size(void) {
+    return sizeof(struct queue) +(2 * queue_element_size() );
+}
+
+static struct queue *queue_init_priv(void *mem, size_t sz, bool owner) {
     struct queue *q = mem;
 
     if (mem == NULL) QUEUE_BAIL(NULL, "Parameter 'mem' invalid.");
@@ -50,33 +53,42 @@ struct queue *queue_init(void *mem, size_t sz)
     q->head = 0;
     q->tail = 0;
     q->element_ctr = 0;
+    q->owner = owner;
 
     return q;
 }
 
-int queue_exit(struct queue *q)
-{
+struct queue *queue_init_simple(int nr_elements) {
+    size_t sz = (nr_elements * queue_element_size() ) + queue_minimum_size();
+    void *mem = malloc(sz);
+    return queue_init_priv(mem, sz, true);
+}
+
+struct queue *queue_init(void *mem, size_t sz) {
+    return queue_init_priv(mem, sz, false);
+}
+
+int queue_exit(struct queue *q) {
     if (q == NULL) QUEUE_BAIL(-EINVAL, "Queue context invalid.");
-    lro2_sem_destroy(&q->semaphore);
+    if (q->owner == true) {
+        free(q);
+    }
 
     return QUEUE_SUCCESS;
 }
 
-int queue_push_tail(struct queue *q, intptr_t element)
-{
+int queue_push_tail(struct queue *q, intptr_t element) {
     int retval = -ENODATA;
     if (q == NULL) QUEUE_BAIL(-EINVAL, "Queue context invalid.");
     lro2_sem_wait(&q->semaphore); /*sem down*/
 
-    if (queue_free_unsafe(q) > 0)
-    {
+    if (queue_free_unsafe(q) > 0) {
         q->queue_start[q->tail] = element;
-        q->tail++;
-        q->tail = q->tail % q->nr_elements;
+        q->tail = (q->tail +1 ) % q->nr_elements;
         q->element_ctr++;
 
 #ifdef Q_DEBUG
-        fprintf(stderr,"push [%p] [val: %p] [%d/%d->%d:%d]\n", q, element, q->element_ctr, q->nr_elements, q->head, q->tail);
+        fprintf(stderr,"push [%p] [val: 0x%x] [%d/%d->%d:%d]\n", q, element, q->element_ctr, q->nr_elements, q->head, q->tail);
 #endif
         retval = QUEUE_SUCCESS;
     }
@@ -85,27 +97,23 @@ int queue_push_tail(struct queue *q, intptr_t element)
     return retval;
 }
 
-intptr_t queue_pop_head(struct queue *q)
-{
+intptr_t queue_pop_head(struct queue *q) {
     intptr_t retval = -ENODATA;
     if (q == NULL) QUEUE_BAIL(-EINVAL, "Queue context invalid.");
     lro2_sem_wait(&q->semaphore); /*sem down*/
 
-    if (queue_size_unsafe(q) > 0)
-    {
+    if (queue_size_unsafe(q) > 0) {
         retval = q->queue_start[q->head];
-        q->queue_start[q->head] = (intptr_t) NULL;
-        q->head++;
-        q->head = q->head % q->nr_elements;
+        q->queue_start[q->head] = (intptr_t) 0xDEADBEEF;
+        q->head = ( q->head +1 ) % q->nr_elements;
         q->element_ctr--;
 
-        if (queue_size_unsafe(q) == 0)
-        {
+        if (queue_size_unsafe(q) == 0) {
             q->head = 0;
             q->tail = 0;
         }
 #ifdef Q_DEBUG
-        fprintf(stderr, "pop [%p] [val: %p] [%d/%d->%d:%d]\n", q, retval, q->element_ctr, q->nr_elements, q->head, q->tail);
+        fprintf(stderr, "pop [%p] [val: 0x%X] [%d/%d->%d:%d]\n", q, retval, q->element_ctr, q->nr_elements, q->head, q->tail);
 #endif
     }
 
@@ -113,74 +121,60 @@ intptr_t queue_pop_head(struct queue *q)
     return retval;
 }
 
-intptr_t queue_peek_head(struct queue *q)
-{
+intptr_t queue_peek_head(struct queue *q) {
     return queue_peek_nr(q, 0);
 }
 
-intptr_t queue_peek_nr(struct queue *q, int nr) 
-{
+intptr_t queue_peek_nr(struct queue *q, int nr) {
     intptr_t retval = -ENODATA;
     if (q == NULL) QUEUE_BAIL(-EINVAL, "Queue context invalid.");
-
     lro2_sem_wait(&q->semaphore); /*sem down*/
-    if (queue_size_unsafe(q) > 0 && nr < queue_size_unsafe(q) )
-    {
+
+    if (queue_size_unsafe(q) > 0 && nr < queue_size_unsafe(q) ) {
         int pos = (q->head + nr) % q->nr_elements;
         retval = q->queue_start[pos];
 
 #ifdef Q_DEBUG
-        fprintf(stderr, "peek [%p] [val: %p (%d -> %d)] [%d/%d->%d:%d]\n", q, retval, nr, pos, q->element_ctr, q->nr_elements, q->head, q->tail);
+        fprintf(stderr, "peek [%p] [val: 0x%X (%d -> %d)] [%d/%d->%d:%d]\n", q, retval, nr, pos, q->element_ctr, q->nr_elements, q->head, q->tail);
 #endif
     }
-    lro2_sem_post(&q->semaphore); /*sem up*/
 
+    lro2_sem_post(&q->semaphore); /*sem up*/
     return retval;
 }
 
-intptr_t queue_peek_tail(struct queue *q)
-{
+intptr_t queue_peek_tail(struct queue *q) {
     int pt = (q->nr_elements + q->tail -1) % q->nr_elements;
     return queue_peek_nr(q, pt);
 }
 
-int queue_size_unsafe(struct queue *q)
-{
+int queue_size_unsafe(struct queue *q) {
     int nre = 0;
     if (q == NULL) QUEUE_BAIL(-EINVAL, "Queue context invalid.");
     nre = q->element_ctr;
-
     return nre;
 }
 
-int queue_size(struct queue *q)
-{
+int queue_size(struct queue *q) {
     int nre = 0;
-
     lro2_sem_wait(&q->semaphore); /*sem down*/
     nre = queue_size_unsafe(q);
     lro2_sem_post(&q->semaphore); /*sem up*/
-
     return nre;
 }
 
-int queue_free_unsafe(struct queue *q)
-{
+int queue_free_unsafe(struct queue *q) {
     int nre = 0;
     if (q == NULL) QUEUE_BAIL(-EINVAL, "Queue context invalid.");
     nre = q->nr_elements - q->element_ctr;
-
     return nre;
 }
 
-int queue_free(struct queue *q)
-{
+int queue_free(struct queue *q) {
     int nre = 0;
-
     lro2_sem_wait(&q->semaphore); /*sem down*/
     nre = queue_free_unsafe(q);
     lro2_sem_post(&q->semaphore); /*sem up*/
-
     return nre;
 }
 
