@@ -7,7 +7,7 @@
 #include <sys/resource.h>
 #include <stdint.h>
 
-#include <libcmalloc-1.0/cmalloc.h>
+#include <libcp_utils-1.0/cmalloc.h>
 
 #define NVALGRIND
 #ifndef NVALGRIND
@@ -188,8 +188,8 @@ bool extended_tests(void *ptr, size_t size, size_t chunksz)
         /* allocate array */
         while (cmalloc_unallocated(cm) > (chunksz) )
         {
-            int rand = random() % chunksz;
-            size_t alloc_sz = rand * chunksz;
+            int randt = random() % chunksz;
+            size_t alloc_sz = randt * chunksz;
 
             array[ctr] = NULL;
             if (alloc_sz > cmalloc_unallocated(cm) ) alloc_sz = chunksz;
@@ -248,10 +248,9 @@ bool rand_alloc_free_test(void *ptr, size_t size, size_t chunksz)
          */
         for (; loop_counter >= 0; loop_counter--)
         {
-            int rand = random() % 10;
-            if (rand > 4 && (ctr < (array_max) ) )
+            int randt = random() % 10;
+            if (randt > 4 && (ctr < (array_max) ) )
             {
-                long int r = random();
                 size_t alloc_sz = (random() % (chunksz * 100) );
 
                 if (alloc_sz >= (cmalloc_unallocated(cm) ) )
@@ -426,10 +425,9 @@ bool rand_alloc_free_speed_test(void *ptr, size_t size, size_t chunksz)
          */
         for (; loop_counter >= 0; loop_counter--)
         {
-            int rand = random() % 10;
-            if (rand > 4 && (ctr < (array_max) ) )
+            int randt = random() % 10;
+            if (randt > 4 && (ctr < (array_max) ) )
             {
-                long int r = random();
                 size_t alloc_sz = random() % (chunksz * chunksz);
 
                 clock_t temp = clock();
@@ -480,10 +478,9 @@ bool rand_alloc_free_speed_test(void *ptr, size_t size, size_t chunksz)
          */
         for (; loop_counter >= 0; loop_counter--)
         {
-            int rand = random() % 10;
-            if (rand > 4 && (ctr < (array_max) ) )
+            int randt = random() % 10;
+            if (randt > 4 && (ctr < (array_max) ) )
             {
-                long int r = random();
                 size_t alloc_sz = random() % (chunksz * chunksz);
 
                 if (alloc_sz >= size_max)
@@ -577,7 +574,7 @@ bail:
     return retval;
 }
 
-int main(int argc, char *argv[])
+int main(void)
 {
     const rlim_t kStackSize = 128L * 1024L * 1024L;   // min stack size = 64 Mb
     struct rlimit rl;

@@ -9,8 +9,7 @@
 #include <limits.h>
 #include <sys/resource.h>
 
-#include "stack.h"
-
+#include <libcp_utils-1.0/stack.h>
 
 bool test_simple_push(void *mem_start, ssize_t size)
 {
@@ -31,7 +30,7 @@ bool test_simple_push(void *mem_start, ssize_t size)
     while (stack_free(st) > 0 )
     {
         assert(stack_push(st, counter) == STACK_SUCCESS );
-        assert(stack_peek(st) == counter);
+        assert(stack_peek(st) == (intptr_t) counter);
         counter++;
     }
 
@@ -41,7 +40,7 @@ bool test_simple_push(void *mem_start, ssize_t size)
 
     while (stack_size(st) > 0 )
     {
-        assert(stack_pop(st) == --counter);
+        assert(stack_pop(st) == (intptr_t) --counter);
     }
 
     printf("stack_free(st) == %d\n", stack_free(st) );
@@ -65,7 +64,7 @@ void test_sequence(int seq, ssize_t size)
     free(mem_start);
 }
 
-int main(int argc, char* argv[])
+int main(void)
 {
     {
         ssize_t size = 1024;

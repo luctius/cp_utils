@@ -8,7 +8,7 @@
 #define QUEUE_SUCCESS (0)
 
 struct queue;
-int queue_minimum_size();
+int queue_minimum_size(void);
 
 struct queue *queue_init(void *mem, size_t sz) __attribute__ ((warn_unused_result));
 int queue_exit(struct queue *q);

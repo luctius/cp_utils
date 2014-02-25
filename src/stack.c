@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#include "stack.h"
+#include <libcp_utils-1.0/stack.h>
 
 #include "lro2_os.h"
 

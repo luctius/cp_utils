@@ -5,8 +5,8 @@ AC_PREREQ([2.60])
 AC_INIT(libcp_utils, 1.0.0, corpeters@incas3.eu)
 AC_CONFIG_MACRO_DIR([m4])
 
-AC_SUBST([LIBCMALLOC_SO_VERSION], [1:0:0])
-AC_SUBST([LIBCMALLOC_API_VERSION], [1.0])
+AC_SUBST([LIBCP_UTILS_SO_VERSION], [1:0:0])
+AC_SUBST([LIBCP_UTILS_API_VERSION], [1.0])
 
 AM_INIT_AUTOMAKE([foreign])
 AM_MAINTAINER_MODE([disable])
@@ -52,6 +52,7 @@ AC_DEFINE([_GNU_SOURCE], 1, [Use GNU extensions])
 # check if math lib exists and contains sine function
 AC_CHECK_LIB([math], [pow])
 AC_CHECK_LIB([rt], [clock_gettime])
+AC_CHECK_LIB([pthread], [sem_init])
 
 #AC_CHECK_PROGS([DOXYGEN], [doxygen])
 #if test -z "$DOXYGEN";
@@ -83,7 +84,7 @@ AC_CONFIG_FILES([
     Makefile 
     src/Makefile 
     test/Makefile 
-    cp_utils-${LIBCMALLOC_API_VERSION}.pc 
+    cp_utils-${LIBCP_UTILS_API_VERSION}.pc 
     ])
 
 AC_CONFIG_HEADERS([src/def.h])

@@ -5,7 +5,7 @@
 #include <string.h>
 #include <assert.h>
 
-#include "queue.h"
+#include <libcp_utils-1.0/queue.h>
 
 #include "lro2_os.h"
 //#define Q_DEBUG 1
@@ -30,7 +30,7 @@ struct queue
 int queue_free_unsafe(struct queue *q);
 int queue_size_unsafe(struct queue *q);
 
-int queue_minimum_size()
+int queue_minimum_size(void)
 {
     return sizeof(struct queue) +(2 * sizeof(intptr_t) );
 }

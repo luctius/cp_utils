@@ -9,7 +9,7 @@
 #include <limits.h>
 #include <sys/resource.h>
 
-#include "queue.h"
+#include <libcp_utils-1.0/queue.h>
 
 
 bool test_simple_push(void *mem_start, ssize_t size)
@@ -131,7 +131,7 @@ void test_sequence(int seq, ssize_t size)
     free(mem_start);
 }
 
-int main(int argc, char* argv[])
+int main(void)
 {
     {
         ssize_t size = 1024;

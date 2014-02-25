@@ -26,7 +26,7 @@
 #include <valgrind/memcheck.h>
 #endif
 
-#include "cmalloc.h"
+#include <libcp_utils-1.0/cmalloc.h>
 
 #include "lro2_os.h"
 
@@ -72,10 +72,6 @@ struct cmalloc
     size_t total_sz;
     size_t free_sz;
 
-/*
-    bool backtrace;
-    int backtrace_sz;
-*/
     lro2_sem_t semaphore;
 
     uint64_t alloc_counter;
@@ -108,7 +104,7 @@ struct chunk
     void *padding;
 };
 
-int cmalloc_minimum_size()
+int cmalloc_minimum_size(void)
 {
     return (sizeof(struct cmalloc) + (5 * 64) );
 }

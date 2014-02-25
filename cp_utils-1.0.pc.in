@@ -3,9 +3,9 @@ exec_prefix=@exec_prefix@
 libdir=@libdir@
 includedir=@includedir@
 
-Name: libcmalloc
+Name: libcp_utils
 Description: Library providing a fixed size memory pool malloc implementation
 Requires: 
 Version: @PACKAGE_VERSION@
-Libs: -L${libdir} -lcmalloc-1.0
-Cflags: -I${includedir}/cmalloc-1.0
+Libs: -L${libdir} -lcp_utils-1.0
+Cflags: -I${includedir}/libcp_utils-1.0
